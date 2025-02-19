@@ -17,7 +17,7 @@ BASE_FOLDER = r"C:\maas360_users"
 if not os.path.exists(BASE_FOLDER):
     os.makedirs(BASE_FOLDER)
 
-# Configure initial logging (this will be overridden per run)
+# Configure initial logging (will be reconfigured per run)
 logging.basicConfig(
     filename=os.path.join(BASE_FOLDER, "default.log"),
     level=logging.INFO,
@@ -34,7 +34,7 @@ def initialize_driver():
     logging.info("Edge WebDriver initialized.")
     return driver
 
-# Function to handle the password modal dialog
+# Function to handle the password modal dialog (optimized for speed)
 def handle_password_modal(driver, wait, password):
     try:
         # Wait for the modal dialog to be visible.
@@ -54,17 +54,18 @@ def handle_password_modal(driver, wait, password):
         # Locate the password input field using its correct ID "centralisedPassword"
         password_input = wait.until(EC.element_to_be_clickable((By.ID, "centralisedPassword")))
         password_input.clear()
-        password_input.send_keys(password)
-        logging.info("Entered password in modal field using id 'centralisedPassword'.")
+        # Set the password value directly for speed
+        driver.execute_script("arguments[0].value = arguments[1];", password_input, password)
+        logging.info("Set password in modal field using id 'centralisedPassword'.")
         
         # Dispatch events to trigger any JavaScript listeners.
         driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", password_input)
         driver.execute_script("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", password_input)
         
-        # Wait briefly for the Confirm button to update.
-        time.sleep(1)
+        # Reduced wait time for the confirm button to update.
+        time.sleep(0.2)
         
-        # Locate the confirm button using its ID "pwdSubmit"
+        # Locate the confirm button using its ID "pwdSubmit" and enable it.
         confirm_button = wait.until(EC.presence_of_element_located((By.ID, "pwdSubmit")))
         driver.execute_script("arguments[0].removeAttribute('disabled');", confirm_button)
         driver.execute_script("arguments[0].classList.remove('disabled-btn');", confirm_button)
@@ -93,12 +94,10 @@ def login():
         logging.error("Missing one or more required fields.")
         return
 
-    # Create dynamic log file based on new hire name
-    # Remove spaces and lower-case the name to form filename, e.g., "john.doe.log"
+    # Create dynamic log file based on new hire name (firstnamelastname.log)
     log_filename = new_hire_name.replace(" ", "").lower() + ".log"
     log_path = os.path.join(BASE_FOLDER, log_filename)
-    
-    # Remove any existing handlers and reconfigure logging for this run.
+    # Remove existing handlers and reconfigure logging for this run.
     logger = logging.getLogger()
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
@@ -109,7 +108,7 @@ def login():
     logger.setLevel(logging.INFO)
     logging.info(f"Logging started for new hire: {new_hire_name} into file {log_path}")
 
-    # Also, prepare CSV file path (firstnamelastname.csv)
+    # Prepare CSV file path (firstnamelastname.csv)
     csv_filename = new_hire_name.replace(" ", "").lower() + ".csv"
     csv_path = os.path.join(BASE_FOLDER, csv_filename)
 
@@ -193,12 +192,11 @@ def login():
         full_name_field.send_keys(new_hire_name)
         logging.info(f"Filling 'New Hire Name' with: {new_hire_name}")
 
-        # Create "Username" as first.last.
+        # Fill "Username" for the new user.
         if len(name_parts) >= 2:
             username_value = f"{name_parts[0]}.{name_parts[-1]}"
         else:
             username_value = new_hire_name.lower()
-
         username_field = wait.until(EC.element_to_be_clickable(
             (By.XPATH, "//*[@id='addUserBasicForm.username']")))
         username_field.clear()
@@ -239,8 +237,7 @@ def login():
         # Handle the password modal.
         handle_password_modal(driver, wait, password_val)
 
-        # Append CSV record: first column: username (first.last), second: "Lastname, Firstname",
-        # third: password ("w2LuC#Ad"), fourth: email (first.last@mdm.mesfire.com)
+        # Append CSV record.
         email_value = f"{username_value}@mdm.mesfire.com"
         with open(csv_path, mode='a', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
@@ -254,6 +251,7 @@ def login():
         new_hire_name_entry.delete(0, tk.END)
         logging.info("Cleared the form for a new entry.")
 
+        # Optional wait before ending this run.
         time.sleep(5)
 
     except Exception as e:
